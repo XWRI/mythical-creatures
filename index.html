@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>山海经图鉴 · 南山经</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>山海经<span>·南山经</span></h1>
+    <div class="search">
+      <input id="q" type="search" placeholder="按功效查：不迷路、不嫉妒、大旱……" autocomplete="off">
+      <div id="tags" class="tags"></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="map-wrap">
+      <svg id="map" role="img" aria-label="南山经原文拓扑图"></svg>
+      <div class="map-tools">
+        <button id="zin" title="放大">＋</button>
+        <button id="zout" title="缩小">－</button>
+        <button id="zfit" title="复位">⟲</button>
+      </div>
+      <p class="map-note">原文拓扑：按“又东某百里”推算的相对位置。三列山系之间的相对方位原文未载，此处上下排开。</p>
+    </section>
+    <aside id="panel" class="panel"></aside>
+  </main>
+
+  <script src="data/nanshan.js"></script>
+  <script src="data/illustrations.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
