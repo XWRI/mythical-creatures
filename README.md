@@ -14,6 +14,14 @@ python -m http.server 8731
 - `app.js`：按“又东某百里”推算出原文拓扑图（SVG，可拖拽、可缩放），右侧是详情面板，上方是功效反查。
 - `style.css`：古籍纸色主题，带暗色模式。
 
+## 中山经
+
+`data/zhongshan.js` 由 `python tools/build_zhongshan.py` 生成（只能在 Windows 上跑，繁转简用的是系统 API）。输入是 `data/source/zhongshan.txt`（维基文库原文，质量标注 75%，脚本里修正了两处明显错字）和人工整理的 `data/source/zhongshan_products.txt`。
+
+- 12 列山系、197 座山、89 条有名物产，物产关键词是自动提取的。
+- 还没有白话译文，只有每条物产的现代说法。
+- 除了和南山经同名的旋龟，还没有配古图。
+
 ## 待办
 
 - 原文是凭通行本录入的，**还没有逐字校对**，生僻字（𪊨、𨏖、䳋 等）要对照影印本核实。

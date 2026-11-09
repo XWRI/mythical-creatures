@@ -1,28 +1,52 @@
 (() => {
-  const DATA = window.NANSHAN;
-  const SCALE = 0.32;   // 每里多少 SVG 单位
-  const ROW = 330;      // 山系之间的竖向间距
-  const DIRS = { "东": [1, 0], "西": [-1, 0], "南": [0, 1], "北": [0, -1], "东南": [Math.SQRT1_2, Math.SQRT1_2], "东北": [Math.SQRT1_2, -Math.SQRT1_2] };
-  const TAGS = ["养生", "心性", "吉兆", "凶兆", "危险", "奇异"];
-  const HINTS = ["不迷路", "不嫉妒", "不饿", "大旱", "吃人"];
-  const KIND_SEAL = { "兽": "兽", "鸟": "鸟", "鱼": "鱼", "水族": "鳞", "木": "木", "草": "草" };
+  // 由北往南排：中山经在上，南山经在下
+  const BOOKS = [window.ZHONGSHAN, window.NANSHAN];
+  const SCALE = 0.32;     // 每里多少 SVG 单位
+  const MIN_STEP = 58;    // 中山经常有“又东十里”，太短的路段按这个长度画，否则山会叠在一起
+  const CHAIN_GAP = 190;  // 山系之间的竖向留白（含标题和山名）
+  const BOOK_GAP = 170;
+  const D = Math.SQRT1_2;
+  const DIRS = { "东": [1, 0], "西": [-1, 0], "南": [0, 1], "北": [0, -1], "东南": [D, D], "东北": [D, -D], "西南": [-D, D], "西北": [-D, -D] };
+  const TAGS = ["养生", "心性", "御灾", "吉兆", "凶兆", "危险", "奇异"];
+  const HINTS = ["不迷路", "不嫉妒", "不饿", "不忘", "解忧", "大旱", "吃人"];
+  const KIND_SEAL = { "兽": "兽", "鸟": "鸟", "鱼": "鱼", "水族": "鳞", "木": "木", "草": "草", "神": "神", "石": "石", "水": "水" };
   const NS = "http://www.w3.org/2000/svg";
 
   // ---------- 数据整理 ----------
   const mountains = [];
   const byId = {};
-  DATA.chains.forEach((chain, ci) => {
-    let x = 0, y = ci * ROW;
-    chain.mountains.forEach((m, i) => {
-      if (m.dir) {
-        const [dx, dy] = DIRS[m.dir];
-        x += dx * m.li * SCALE;
-        y += dy * m.li * SCALE;
-      }
-      Object.assign(m, { x, y, chain, index: i });
-      mountains.push(m);
-      byId[m.id] = m;
+  const isVertical = dir => dir === "南" || dir === "北";
+  let cursorY = 0;
+  BOOKS.forEach(book => {
+    book.top = cursorY;
+    cursorY += 90;
+    book.chains.forEach(chain => {
+      let x = 0, y = 0;
+      chain.mountains.forEach((m, i) => {
+        if (m.dir) {
+          const [dx, dy] = DIRS[m.dir];
+          m.step = Math.max(m.li * SCALE, MIN_STEP);
+          x += dx * m.step;
+          y += dy * m.step;
+        }
+        Object.assign(m, { x, y, chain, book, index: i });
+        mountains.push(m);
+        byId[m.id] = m;
+      });
+      // 每列山系各自归位：左边对齐，放在上一列下方
+      const ms = chain.mountains;
+      const minX = Math.min(...ms.map(m => m.x)), minY = Math.min(...ms.map(m => m.y)), maxY = Math.max(...ms.map(m => m.y));
+      ms.forEach((m, i) => {
+        m.x -= minX;
+        m.y += cursorY + 70 - minY;
+        m.sideLabel = isVertical(m.dir) || isVertical(ms[i + 1] && ms[i + 1].dir);
+      });
+      chain.top = cursorY;
+      cursorY += 70 + (maxY - minY) + CHAIN_GAP;
     });
+    book.bottom = cursorY;
+    book.width = Math.max(...book.chains.flatMap(c => c.mountains.map(m => m.x)));
+    cursorY += BOOK_GAP;
   });
   const products = mountains.flatMap(m => m.products.map(p => ({ ...p, mountain: m })));
 
@@ -59,17 +83,21 @@
   const world = el("g", {}, svg);
   const nodeEls = {};
 
-  DATA.chains.forEach(chain => {
+  BOOKS.forEach(book => {
+    const head = el("text", { x: -10, y: book.top + 40, class: "book-title" }, world);
+    head.textContent = book.name;
+    book.chains.forEach(chain => {
     const ms = chain.mountains;
     const first = ms[0];
     const g = el("g", {}, world);
-    const title = el("text", { x: first.x - 10, y: first.y - 56, class: "chain-title" }, g);
+    const title = el("text", { x: -10, y: chain.top + 18, class: "chain-title" }, g);
     title.textContent = chain.name;
-    const sub = el("text", { x: first.x - 8, y: first.y - 36, class: "chain-sub" }, g);
-    sub.textContent = `首山 ${first.name} · 其神${chain.god}`;
+    const sub = el("text", { x: -8, y: chain.top + 38, class: "chain-sub" }, g);
+    sub.textContent = `首山 ${first.name}` + (chain.god ? ` · 其神${chain.god}` : "");
     for (let i = 1; i < ms.length; i++) {
       const a = ms[i - 1], b = ms[i];
-      el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: "edge" }, g);
+      el("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: "edge" + (b.li * SCALE < MIN_STEP ? " short" : "") }, g);
+      if (b.step < 90) continue;  // 短路段放不下文字，里程在详情面板里看
       const t = el("text", { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 - 10, class: "edge-li" }, g);
       t.textContent = `${b.dir}${cnNum(b.li)}里`;
     }
@@ -77,7 +105,7 @@
       const ng = el("g", { class: "mtn" + (m.products.length ? " has-beast" : ""), transform: `translate(${m.x},${m.y})`, "data-id": m.id }, g);
       el("rect", { x: -18, y: -18, width: 36, height: 36, class: "sel-ring", transform: "rotate(45)" }, ng);
       el("path", { d: "M-15 9 L-6 -5 L-1 2 L6 -13 L15 9 Z", class: "peak" }, ng);
-      const label = el("text", { x: 0, y: 20, class: "label", "text-anchor": "start" }, ng);
+      const label = el("text", m.sideLabel ? { x: 20, y: 6, class: "label side" } : { x: 0, y: 20, class: "label", "text-anchor": "start" }, ng);
       label.textContent = m.name;
       if (m.products.length) {
         const c = el("text", { x: 14, y: -10, class: "count" }, ng);
@@ -86,6 +114,7 @@
       const tip = el("title", {}, ng);
       tip.textContent = m.name + (m.products.length ? `：${m.products.map(p => p.name).join("、")}` : "");
       nodeEls[m.id] = ng;
+    });
     });
   });
 
@@ -134,13 +163,21 @@
   document.getElementById("zout").onclick = () => zoomAt(1.3);
   document.getElementById("zfit").onclick = fit;
   function centerOn(m) {
+    // 从全图里点选时先放大到看得清字
+    const cw = svg.clientWidth || 800, ch = svg.clientHeight || 500;
+    if (vb.w > cw / 0.5) {
+      const w = cw / 0.8, h = w * ch / cw;
+      vb = { x: m.x - w / 2, y: m.y - h / 2, w, h };
+      applyVB();
+      return;
+    }
     if (m.x < vb.x || m.x > vb.x + vb.w || m.y < vb.y || m.y > vb.y + vb.h) {
       vb.x = m.x - vb.w / 2; vb.y = m.y - vb.h / 2; applyVB();
     }
   }
 
   // ---------- 状态 ----------
-  const state = { sel: null, q: "", tag: null };
+  const state = { sel: null, q: "", tag: null, book: BOOKS[0] };
   const qInput = document.getElementById("q");
   const tagBox = document.getElementById("tags");
   const panel = document.getElementById("panel");
@@ -173,6 +210,7 @@
 
   function select(id) {
     state.sel = id;
+    state.book = byId[id].book;
     render();
     centerOn(byId[id]);
   }
@@ -214,6 +252,9 @@
   }
 
   function homeView() {
+    const DATA = state.book;
+    const bookMtns = DATA.chains.flatMap(c => c.mountains);
+    const beasts = bookMtns.reduce((s, m) => s + m.products.length, 0);
     const rows = DATA.chains.map(c => {
       const n = c.mountains.length;
       const li = c.mountains.reduce((s, m) => s + m.li, 0);
@@ -221,9 +262,8 @@
         <div class="${n !== c.stated.count ? "bad" : ""}">${n} / ${c.stated.count}</div>
         <div class="${li !== c.stated.li ? "bad" : ""}">${li} / ${c.stated.li}</div>`;
     }).join("");
-    const beasts = products.length;
-    return `<h2>南山经</h2>
-      <div class="crumb">五藏山经之首 · 三列山系 · ${mountains.length} 座山 · ${beasts} 种有名奇物</div>
+    return `<h2>${DATA.name}</h2>
+      <div class="crumb">${DATA.chains.length} 列山系 · ${bookMtns.length} 座山 · ${beasts} 条有名奇物</div>
       <h3>怎么用</h3>
       <p class="baihua">点地图上的山看原文与物产。青色的山有异兽奇木，红色数字是数量。上方可以按功效反查，比如“不迷路”“不嫉妒”，也可以按标签筛选。</p>
       <h3>原文自洽检查</h3>
@@ -231,7 +271,7 @@
         <div class="h">山系</div><div class="h">山数 录/载</div><div class="h">里程 推/载</div>
         ${rows}
       </div>
-      <p class="baihua">红色表示原文条目与总结句对不上：首经少一山、少二百五十里，次三经少一山、少八百里，一般认为是传抄脱文；次二经则多出十里。</p>
+      <p class="baihua">红色表示逐条累加的结果与原文总结句对不上，多半是传抄脱误，也是读《山海经》的一个有趣之处。</p>
       <p class="yuanwen">${esc(DATA.closing)}</p>
       <h3>山神与祭祀</h3>
       ${DATA.chains.map(c => `<p class="baihua"><b>${c.name}</b>：${esc(c.summary)}</p>${figure(ILL.gods[c.id], c.name + "山神")}`).join("")}
@@ -242,14 +282,13 @@
   function mountainView(m, q, fromSearch) {
     const c = m.chain;
     const prev = c.mountains[m.index - 1], next = c.mountains[m.index + 1];
-    return `${fromSearch ? `<p><span class="link" data-back>← 返回检索结果</span></p>` : `<p><span class="link" data-home>← 南山经总览</span></p>`}
+    return `${fromSearch ? `<p><span class="link" data-back>← 返回检索结果</span></p>` : `<p><span class="link" data-home>← ${m.book.name}总览</span></p>`}
       <div class="crumb">${c.name} · 第 ${m.index + 1} 山${m.dir ? ` · 自上一山${m.dir}行${cnNum(m.li)}里` : " · 首山"}</div>
       <h2>${esc(m.name)}</h2>
       ${m.note ? `<div class="note">${esc(m.note)}</div>` : ""}
       <h3>原文</h3>
       <div class="yuanwen">${hl(m.text, q)}</div>
-      <h3>白话</h3>
-      <div class="baihua">${esc(m.bh)}</div>
+      ${m.bh ? `<h3>白话</h3><div class="baihua">${esc(m.bh)}</div>` : ""}
       ${m.products.length ? `<h3>异兽奇珍</h3>${m.products.map(p => card({ ...p, mountain: m }, q, false)).join("")}` : ""}
       ${m.res.length ? `<h3>物产</h3><div class="res">${m.res.map(r => `<span>${esc(r)}</span>`).join("")}</div>` : ""}
       <h3>沿途</h3>
@@ -309,12 +348,25 @@
   }
 
   // 初始视图：从西端开始、字号可读；⟲ 才是全图
-  function start() {
-    const w = Math.min(bounds.w, svg.clientWidth / 0.8);
-    const h = w * svg.clientHeight / svg.clientWidth;
-    vb = { x: bounds.x, y: bounds.y + bounds.h / 2 - h / 2, w, h };
+  function showBook(book) {
+    // 页面在后台加载时 SVG 没有尺寸，退回一个常见比例，避免 viewBox 出现 NaN
+    const cw = svg.clientWidth || 800, ch = svg.clientHeight || 500;
+    const w = Math.min(book.width + 140, cw / 0.8);
+    const h = w * ch / cw;
+    vb = { x: -60, y: book.top - 70, w, h };
     applyVB();
   }
-  start();
+  const bookBox = document.getElementById("books");
+  bookBox.innerHTML = BOOKS.map((b, i) => `<button data-book="${i}">${b.name}</button>`).join("") + `<button data-all>全图</button>`;
+  bookBox.addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if ("all" in b.dataset) { fit(); return; }
+    state.book = BOOKS[+b.dataset.book];
+    state.sel = null;
+    showBook(state.book);
+    render();
+  });
+  showBook(state.book);
   render();
 })();
